@@ -39,7 +39,7 @@ class ClickatellTestCase(TestCase):
         [id_] = self.clickatell.sendmsg(recipient='27123456789', 
                                         sender='27123456789', 
                                         text='hello world')
-        self.assertTrue(id_.value, 'apimsgid')
+        self.assertEquals(id_.value, 'apimsgid')
     
     def test_sendmsg_multiple_recipients(self):
         client = self.clickatell.client
@@ -56,10 +56,11 @@ class ClickatellTestCase(TestCase):
                                             '27123456782'], 
                                         sender='27123456789', 
                                         text='hello world')
-        self.assertTrue(id1.value, 'apimsgid')
-        self.assertTrue(id1.extra, {'To': '27123456781'})
-        self.assertTrue(id2.value, 'apimsgid')
-        self.assertTrue(id2.extra, {'To': '27123456782'})
+        self.assertEquals(id1.value, 'apimsgid')
+        self.assertEquals(id1.extra, {'To': '27123456781'})
+        self.assertEquals(id2.value, 'apimsgid')
+        self.assertEquals(id2.extra, {'To': '27123456782'})
+        self.assertTrue(client.all_mocks_called())
     
     def test_sendmsg_with_error(self):
         client = self.clickatell.client
@@ -72,8 +73,8 @@ class ClickatellTestCase(TestCase):
         [err] = self.clickatell.sendmsg(recipients=['27123456782'],
                                             sender='27123456782',
                                             text='hello world')
-        self.assertTrue(err.code, 301)
-        self.assertTrue(err.reason, 'No Credit Left')
+        self.assertEquals(err.code, 301)
+        self.assertEquals(err.reason, 'No Credit Left')
     
     def test_sendmsg_with_mixed_results(self):
         client = self.clickatell.client
@@ -90,10 +91,10 @@ class ClickatellTestCase(TestCase):
                                                 '27123456782'],
                                             sender='27123456783',
                                             text='hello world')
-        self.assertTrue(ok.value, 'apiMsgId')
-        self.assertTrue(ok.extra, {'To': '27123456781'})
-        self.assertTrue(err.code, 301)
-        self.assertTrue(err.reason, 'No Credit Left')
+        self.assertEquals(ok.value, 'apiMsgId')
+        self.assertEquals(ok.extra, {'To': '27123456781'})
+        self.assertEquals(err.code, 301)
+        self.assertEquals(err.reason, 'No Credit Left')
     
 
 

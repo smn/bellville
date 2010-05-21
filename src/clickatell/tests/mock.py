@@ -18,14 +18,21 @@ class TestHttpClient(HttpClient):
     def get_mocked(self, method, url, data={}, headers={}):
         method = method.upper()
         method_queue = self.queue.get(method, [])
-        for s_url, s_data, s_headers, response in method_queue:
+        enumeration = enumerate(method_queue)
+        for index, (s_url, s_data, s_headers, response) in enumeration:
             if (url == s_url) \
                 and (data == s_data) \
                 and (headers == s_headers):
                 logging.warning("Mocked response: %s" % response)
+                del method_queue[index]
+                self.queue[method] = method_queue
                 return response
         raise ClickatellError, 'No matching mocked data matches %s, %s, %s, %s' \
                                     % (method, url, data, headers)
+    
+    def all_mocks_called(self):
+        return all((queue == []) for method, queue in self.queue.items())
+    
     def log_mocks(self):
         logging.debug("Mocked URLs:")
         logging.debug("-" * 32)
