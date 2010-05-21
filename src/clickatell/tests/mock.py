@@ -27,11 +27,13 @@ class TestHttpClient(HttpClient):
         raise ClickatellError, 'No matching mocked data matches %s, %s, %s, %s' \
                                     % (method, url, data, headers)
     def log_mocks(self):
+        logging.info("Mocked URLs:")
+        logging.info("-" * 32)
         for method, mocks in self.queue.items():
             for url, data, headers, response in mocks:
-                logging.debug("%(method)s %(url)s with %(data)s and "
+                logging.info("\t%(method)s %(url)s with %(data)s and "
                                 "headers (%(headers)s):" % locals())
-                logging.debug("\t\t -> %s" % response)
+                logging.info("\t\t `-> %s" % response)
     
     def get(self, *args, **kwargs):
         return self.get_mocked('get', *args, **kwargs)

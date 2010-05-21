@@ -37,7 +37,7 @@ class ClickatellTestCase(TestCase):
         [id_] = self.clickatell.sendmsg(recipient='27123456789', 
                                         sender='27123456789', 
                                         text='hello world')
-        self.assertTrue(id_.apimsgid, 'apimsgid')
+        self.assertTrue(id_.value, 'apimsgid')
     
     def test_sendmsg_multiple_recipients(self):
         client = self.clickatell.client
@@ -50,15 +50,15 @@ class ClickatellTestCase(TestCase):
 ID: apimsgid To: 27123456782
 """))
         client.log_mocks()
-        [id1, id2, id3] = self.clickatell.sendmsg(recipients=[
+        [id1, id2] = self.clickatell.sendmsg(recipients=[
                                             '27123456781',
                                             '27123456782'], 
                                         sender='27123456789', 
                                         text='hello world')
-        self.assertTrue(id1.apimsgid, 'apimsgid')
-        self.assertTrue(id1.to, '27123456781')
-        self.assertTrue(id2.apimsgid, 'apimsgid')
-        self.assertTrue(id2.to, '27123456782')
+        self.assertTrue(id1.value, 'apimsgid')
+        self.assertTrue(id1.extra, {'To': '27123456781'})
+        self.assertTrue(id2.value, 'apimsgid')
+        self.assertTrue(id2.extra, {'To': '27123456782'})
     
 class SessionTestCase(TestCase):
     def test_session_timeout(self):
@@ -89,7 +89,7 @@ class AuthenticationTestCase(TestCase):
             'api_id': '123456'
         })
         self.assertTrue(isinstance(ok, OKResponse))
-        self.assertEquals(ok.results, ['somerandomhash'])
+        self.assertEquals(ok.value, 'somerandomhash')
     
     def test_err_authentication(self):
         "test ERR / fail response"
@@ -113,10 +113,13 @@ class ResponseTestCase(TestCase):
     def test_ok_response(self):
         """OK should split the result string into a list based on spaces"""
         ok = OKResponse("a" * 32)
-        self.assertEquals(ok.results, ["a" * 32])
-        
+        self.assertEquals(ok.value, "a" * 32)
+        self.assertEquals(ok.extra, {})
+    
+    def test_ok_response_with_spaces(self):
         ok = OKResponse("a b c d e")
-        self.assertEquals(ok.results, ['a', 'b', 'c', 'd', 'e'])
+        self.assertEquals(ok.value, 'a b c d e')
+        self.assertEquals(ok.extra, {})
     
     def test_err_response(self):
         """ERRReponse should provide a code and a reason if available"""
@@ -127,7 +130,11 @@ class ResponseTestCase(TestCase):
         err = ERRResponse("007")
         self.assertEquals(err.code, 7)
         self.assertEquals(err.reason, '')
-        
+    
+    def test_parsing_of_response(self):
+        resp = OKResponse("apiMsgId To: 27123456782")
+        self.assertEquals(resp.value, 'apiMsgId')
+        self.assertEquals(resp.extra, {'To':'27123456782'})
 
 class MockingTestCase(TestCase):
     """

@@ -2,42 +2,52 @@ import re
 
 class Response(object):
     kind = None
+    key_value_pattern = re.compile(r'([a-zA-Z]+)\: ([a-zA-Z0-9]+)')
     
-    def __init__(self, *args, **kwargs):
-        self.args, self.kwargs = args, kwargs
-        self.process(*args, **kwargs)
+    def __init__(self, data):
+        self.data = data
+        self.process(self.data)
+    
+    def parse_parts(self, data):
+        """
+        Parses incoming data like:
+        
+            312312312312 To: 27123456789
+        
+        To:
+        
+            '312312312312', {'To':'27123456789'}
+        
+        """
+        collection = {}
+        while 1:
+            match = self.key_value_pattern.search(data)
+            if match is None:
+                break
+            key, value = match.group(1, 2)
+            collection[key] = value
+            data = data.replace(match.group(0), '')
+        return data.strip(), collection
+    
+    def process(self, data):
+        """
+        Override this method if you're expecting data in a different format.
+        """
+        self.value, self.extra = self.parse_parts(data)
     
     def __repr__(self):
-        return "%s (%s, %s)" % (self.kind, self.args, self.kwargs)
+        return "%s (%s, %s)" % (self.kind, self.data)
 
 class OKResponse(Response):
     kind = "OK"
     
-    def process(self, *args, **kwargs):
-        print args, kwargs
-        string = args[0]
-        self.results = string.split()
-
 class ERRResponse(Response):
     kind = "ERR"
     
     def process(self, string):
         parts = string.split(", ", 1)
         self.code = int(parts[0])
-        self.reason = ''.join(parts[1:]).strip() # ugly
+        self.reason = ''.join(parts[1:]).strip() 
 
 class IDResponse(Response):
     kind = "ID"
-    re_to = re.compile(r'To: (?P<recipient>\d+)')
-    
-    def process(self, string):
-        parts = string.split(" ", 1)
-        apimsg = parts[0]
-        remainder = ''.join(parts[1:]).strip() # ugly
-        self.apimsgid = parts[0]
-        match = self.re_to.match(remainder)
-        if match:
-            self.to = match.groupdict()['recipient']
-            print "TO:",self.to
-        else:
-            self.to = ''

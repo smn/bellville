@@ -28,7 +28,7 @@ class Clickatell(object):
             'password': self.password,
             'api_id': self.api_id
         })
-        return ok.results[0]
+        return ok.value
     
     def session_expired(self):
         """
