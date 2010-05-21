@@ -5,6 +5,9 @@ from clickatell.response import ERRResponse, OKResponse
 from clickatell.tests.mock import TestClient
 from datetime import datetime, timedelta
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 base_url = "https://api.clickatell.com/http"
 auth_url = '%s/auth' % base_url
 sendmsg_url = '%s/sendmsg' % base_url
@@ -33,7 +36,6 @@ class ClickatellTestCase(TestCase):
             'from': '27123456789',
             'text': 'hello world'
         }, response=client.parse_content("ID: apimsgid"))
-        client.log_mocks()
         [id_] = self.clickatell.sendmsg(recipient='27123456789', 
                                         sender='27123456789', 
                                         text='hello world')
@@ -46,9 +48,8 @@ class ClickatellTestCase(TestCase):
             'to': '27123456781,27123456782',
             'from': '27123456789',
             'text': 'hello world'
-        }, response=client.parse_content("""ID: apimsgid To: 27123456781
-ID: apimsgid To: 27123456782
-"""))
+        }, response=client.parse_content("ID: apimsgid To: 27123456781\n" 
+                                            "ID: apimsgid To: 27123456782\n"))
         client.log_mocks()
         [id1, id2] = self.clickatell.sendmsg(recipients=[
                                             '27123456781',
@@ -60,6 +61,42 @@ ID: apimsgid To: 27123456782
         self.assertTrue(id2.value, 'apimsgid')
         self.assertTrue(id2.extra, {'To': '27123456782'})
     
+    def test_sendmsg_with_error(self):
+        client = self.clickatell.client
+        client.mock('GET', sendmsg_url, {
+            'session_id': 'session_id_hash',
+            'to': '27123456782',
+            'from': '27123456782',
+            'text': 'hello world'
+        }, response=client.parse_content("ERR: 301, No Credit Left"))
+        [err] = self.clickatell.sendmsg(recipients=['27123456782'],
+                                            sender='27123456782',
+                                            text='hello world')
+        self.assertTrue(err.code, 301)
+        self.assertTrue(err.reason, 'No Credit Left')
+    
+    def test_sendmsg_with_mixed_results(self):
+        client = self.clickatell.client
+        # first one will succeed, second will fail because credit ran out
+        client.mock('GET', sendmsg_url, {
+            'session_id': 'session_id_hash',
+            'to': '27123456781,27123456782',
+            'from': '27123456783',
+            'text': 'hello world'
+        }, response=client.parse_content("OK: apiMsgId To: 27123456781\n"
+                                            "ERR: 301, No Credit Left\n"))
+        [ok, err] = self.clickatell.sendmsg(recipients=[
+                                                '27123456781',
+                                                '27123456782'],
+                                            sender='27123456783',
+                                            text='hello world')
+        self.assertTrue(ok.value, 'apiMsgId')
+        self.assertTrue(ok.extra, {'To': '27123456781'})
+        self.assertTrue(err.code, 301)
+        self.assertTrue(err.reason, 'No Credit Left')
+    
+
+
 class SessionTestCase(TestCase):
     def test_session_timeout(self):
         """
