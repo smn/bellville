@@ -1,106 +1,157 @@
 from unittest import TestCase
 from clickatell.api import Clickatell
 from clickatell.errors import ClickatellError
-from clickatell.http import HttpClient
-from clickatell.client import Client, ERRResponse, OKResponse
+from clickatell.response import ERRResponse, OKResponse
+from clickatell.tests.mock import TestClient
 from datetime import datetime, timedelta
 
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
 base_url = "https://api.clickatell.com/http"
-
-class TestHttpClient(HttpClient):
-    """A Client that allows us to mock the expected response"""
-    queue = {}
-    
-    def mock(self, method, url, data={}, headers={}, response={}):
-        method = method.upper()
-        self.queue.setdefault(method, [])
-        self.queue[method].append((url, data, headers, response))
-    
-    def get_mocked(self, method, url, data={}, headers={}):
-        method = method.upper()
-        method_queue = self.queue.get(method, [])
-        for s_url, s_data, s_headers, response in method_queue:
-            if (url == s_url) \
-                and (data == s_data) \
-                and (headers == s_headers):
-                logging.debug("Mocked response: %s" % response)
-                return response
-        raise ClickatellError, 'No matching mocked data'
-    
-    def get(self, *args, **kwargs):
-        return self.get_mocked('get', *args, **kwargs)
-    
-    def post(self, *args, **kwargs):
-        return self.get_mocked('post', *args, **kwargs)
-    
-
-class TestClient(Client, TestHttpClient):
-    pass
+auth_url = '%s/auth' % base_url
+sendmsg_url = '%s/sendmsg' % base_url
+ping_url = '%s/ping' % base_url
 
 class ClickatellTestCase(TestCase):
     
     def setUp(self):
-        self.api = Clickatell("username", "password", "api_id")
+        self.username = 'username'
+        self.password = 'password'
+        self.api_id = '123456'
+        self.clickatell = Clickatell(self.username, self.password, \
+                                        self.api_id, client_class=TestClient)
+        client = self.clickatell.client
+        client.mock('GET', auth_url, {
+            'user': self.username,
+            'password': self.password,
+            'api_id': self.api_id
+        }, response=client.parse_content("OK: session_id_hash"))
     
-    def tearDown(self):
-        pass
+    def test_sendmsg(self):
+        client = self.clickatell.client
+        client.mock('GET', sendmsg_url, {
+            'session_id': 'session_id_hash',
+            'to': '27123456789',
+            'from': '27123456789',
+            'text': 'hello world'
+        }, response=client.parse_content("ID: apimsgid"))
+        client.log_mocks()
+        [id_] = self.clickatell.sendmsg(recipient='27123456789', 
+                                        sender='27123456789', 
+                                        text='hello world')
+        self.assertTrue(id_.apimsgid, 'apimsgid')
     
-    def test_client_creation(self):
-        self.assertTrue(self.api)
-
+    def test_sendmsg_multiple_recipients(self):
+        client = self.clickatell.client
+        client.mock('GET', sendmsg_url, {
+            'session_id': 'session_id_hash',
+            'to': '27123456781,27123456782',
+            'from': '27123456789',
+            'text': 'hello world'
+        }, response=client.parse_content("""ID: apimsgid To: 27123456781
+ID: apimsgid To: 27123456782
+"""))
+        client.log_mocks()
+        [id1, id2, id3] = self.clickatell.sendmsg(recipients=[
+                                            '27123456781',
+                                            '27123456782'], 
+                                        sender='27123456789', 
+                                        text='hello world')
+        self.assertTrue(id1.apimsgid, 'apimsgid')
+        self.assertTrue(id1.to, '27123456781')
+        self.assertTrue(id2.apimsgid, 'apimsgid')
+        self.assertTrue(id2.to, '27123456782')
+    
+class SessionTestCase(TestCase):
     def test_session_timeout(self):
-        delta = self.api.session_time_out
-        self.api.session_start_time = datetime.now() - delta - \
+        """
+        Check the session time out check by forcing the timeout
+        one minute past the allowed limit
+        """
+        clickatell = Clickatell("username", "password", "api_id", \
+                                client_class=TestClient)
+        delta = clickatell.session_time_out
+        clickatell.session_start_time = datetime.now() - delta - \
                                                 timedelta(minutes=1)
-        self.assertTrue(self.api.session_expired())
+        self.assertTrue(clickatell.session_expired())
 
-class ClickatellClientTestCase(TestCase):
-    
-    def test_authentication(self):
+class AuthenticationTestCase(TestCase):
+    """Test authentication schemes"""
+    def test_ok_authentication(self):
+        "test OK / success response"
         client = TestClient()
-        client.mock('get', '%s/%s' % (base_url, 'auth'), {
+        client.mock('get', auth_url, {
             'user': 'username',
             'password': 'password',
             'api_id': '123456'
         }, response=client.parse_content("OK: somerandomhash"))
-        [ok] = client.do('auth', user='username', password='password', \
-                    api_id='123456')
+        [ok] = client.do('auth', {
+            'user': 'username', 
+            'password': 'password', 
+            'api_id': '123456'
+        })
+        self.assertTrue(isinstance(ok, OKResponse))
         self.assertEquals(ok.results, ['somerandomhash'])
-
-class ClickatellResponseTestCase(object):
     
+    def test_err_authentication(self):
+        "test ERR / fail response"
+        client = TestClient()
+        client.mock('get', auth_url, {
+            'user': 'username',
+            'password': 'password',
+            'api_id': '123456'
+        }, response=client.parse_content('ERR: 001, Authentication Failed'))
+        [err] = client.do('auth', {
+            'user': 'username', 
+            'password': 'password', 
+            'api_id': '123456'
+        })
+        self.assertTrue(isinstance(err, ERRResponse))
+        self.assertEquals(err.code, 1)
+        self.assertEquals(err.reason, 'Authentication Failed')
+
+class ResponseTestCase(TestCase):
+    """Test parsing of response values into Response objects"""
     def test_ok_response(self):
+        """OK should split the result string into a list based on spaces"""
         ok = OKResponse("a" * 32)
-        self.assertEquals(ok.results, ["*" * 32])
+        self.assertEquals(ok.results, ["a" * 32])
+        
+        ok = OKResponse("a b c d e")
+        self.assertEquals(ok.results, ['a', 'b', 'c', 'd', 'e'])
     
     def test_err_response(self):
+        """ERRReponse should provide a code and a reason if available"""
         err = ERRResponse("001, Authentication Failed")
         self.assertEquals(err.code, 1)
         self.assertEquals(err.reason, "Authentication Failed")
+        
+        err = ERRResponse("007")
+        self.assertEquals(err.code, 7)
+        self.assertEquals(err.reason, '')
+        
 
-class URLTestCase(TestCase):
-    
-    def setUp(self):
-        self.client = TestClient()
+class MockingTestCase(TestCase):
+    """
+    Tests to make sure the mocking code we're using in the other tests
+    is actually working properly.
+    """
     
     def test_get(self):
+        client = TestClient()
         mocked_response = {'OK': '123456789'}
         data = {'q': "Testing Client Lib"}
-        self.client.mock('GET', 'http://api.clickatell.com', \
+        client.mock('GET', 'http://api.clickatell.com', \
                                 data = data, response = mocked_response)
         self.assertEquals(mocked_response, \
-                            self.client.get('http://api.clickatell.com', \
+                            client.get('http://api.clickatell.com', \
                                                 data=data))
     
     def test_post(self):
+        client = TestClient()
         mocked_response = {'OK': '123456789'}
         data = {'keyword': 'argument'}
-        self.client.mock('POST', 'http://api.clickatell.com', \
+        client.mock('POST', 'http://api.clickatell.com', \
                                 data=data, response=mocked_response)
         self.assertEquals(mocked_response, \
-                            self.client.post('http://api.clickatell.com', \
+                            client.post('http://api.clickatell.com', \
                                                 data=data))
 

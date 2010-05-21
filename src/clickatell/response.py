@@ -1,3 +1,5 @@
+import re
+
 class Response(object):
     kind = None
     
@@ -11,14 +13,31 @@ class Response(object):
 class OKResponse(Response):
     kind = "OK"
     
-    def process(self, string):
+    def process(self, *args, **kwargs):
+        print args, kwargs
+        string = args[0]
         self.results = string.split()
 
 class ERRResponse(Response):
     kind = "ERR"
     
     def process(self, string):
-        code, description = string.split(", ")
-        self.code = int(self.code)
-        self.description = description.strip()
+        parts = string.split(", ", 1)
+        self.code = int(parts[0])
+        self.reason = ''.join(parts[1:]).strip() # ugly
 
+class IDResponse(Response):
+    kind = "ID"
+    re_to = re.compile(r'To: (?P<recipient>\d+)')
+    
+    def process(self, string):
+        parts = string.split(" ", 1)
+        apimsg = parts[0]
+        remainder = ''.join(parts[1:]).strip() # ugly
+        self.apimsgid = parts[0]
+        match = self.re_to.match(remainder)
+        if match:
+            self.to = match.groupdict()['recipient']
+            print "TO:",self.to
+        else:
+            self.to = ''

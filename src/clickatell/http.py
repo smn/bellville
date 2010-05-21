@@ -4,7 +4,7 @@ import logging
 class HttpClient(object):
     
     def parse_line(self, line):
-        return map(lambda s: s.strip(), line.split(":"))
+        return map(lambda s: s.strip(), line.split(":", 1))
     
     def parse_content(self, content):
         return [self.parse_line(line.strip())

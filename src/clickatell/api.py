@@ -14,7 +14,7 @@ class Clickatell(object):
     
     @property
     def session_id(self):
-        if session_expired():
+        if self.session_expired():
             self._session_id = self.get_new_session_id()
         return self._session_id
     
@@ -23,11 +23,12 @@ class Clickatell(object):
         Get a new session id from Clickatell by authenticating with
         our username & password.
         """
-        self.client.do('auth', {
+        [ok] = self.client.do('auth', {
             'user': self.username, 
-            'pass': self.password,
+            'password': self.password,
             'api_id': self.api_id
         })
+        return ok.results[0]
     
     def session_expired(self):
         """
@@ -40,3 +41,17 @@ class Clickatell(object):
             return True
         return (datetime.now() - self.session_start_time) >= \
                     self.session_time_out
+    
+    def sendmsg(self, **kwargs):
+        if 'recipients' in kwargs:
+            recipients = kwargs.pop('recipients')
+        else:
+            recipients = [kwargs.pop('recipient')]
+        sender = kwargs.pop('sender')
+        text = kwargs.pop('text')
+        return self.client.do('sendmsg', {
+            'session_id': self.session_id,
+            'to': ','.join(recipients),
+            'from': sender,
+            'text': text
+        })
