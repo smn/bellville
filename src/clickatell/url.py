@@ -1,27 +1,25 @@
 import urllib
 import urllib2
-from clickatell.errors import ClickatellError
+import logging
+from clickatell.utils import Dispatcher
 
-class URLDispatcher(object):
+class URLDispatcher(Dispatcher):
     
     def do_post(self, url, data, headers):
         params = urllib.urlencode(data)
-        f = urllib.urlopen(url, params)
-        return f.read()
+        request = urllib2.Request(url, data, headers)
+        logging.debug('POST %s with %s' % (url, data))
+        return request, urllib2.urlopen(request)
 
     def do_get(self, url, data, headers):
         params = urllib.urlencode(data)
-        f = urllib.urlopen("%s?%s" % (url, params))
-        return f.read()
+        full_url = "%s?%s" % (url, params)
+        logging.debug('GET %s' % full_url)
+        request = urllib2.Request(full_url, None, headers)
+        return request, urllib2.urlopen(request)
     
-    def dispatch(self, method, url, data = {}, headers = {}):
-        method_name = 'do_%s' % method.lower()
-        if hasattr(self, method_name):
-            fn = getattr(self, method_name)
-            return fn(url, data, headers)
-        raise ClickatellError, 'No dispatcher available for %s' % method
 
 url_dispatcher = URLDispatcher()
 
 def open(method, url, data={}, headers={}):
-    url_dispatcher.dispatch(method, url, data, headers)
+    return url_dispatcher.dispatch(method, url, data, headers)
