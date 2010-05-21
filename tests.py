@@ -110,6 +110,32 @@ class SessionTestCase(TestCase):
         clickatell.session_start_time = datetime.now() - delta - \
                                                 timedelta(minutes=1)
         self.assertTrue(clickatell.session_expired())
+    
+    def test_reauthentication_on_session_timeout(self):
+        """
+        If the session_id property is called when the session has actually 
+        timed out it should need to reauthenticate and get new a new session_id
+        """
+        clickatell = Clickatell("username", "password", "api_id", \
+                                    client_class=TestClient)
+        # manually set it for comparison later
+        clickatell.session_start_time = datetime.now()
+        clickatell._session_id = "old_session_hash"
+        self.assertEquals(clickatell.session_id, 'old_session_hash')
+        # manually expire by setting the session_start_time beyond the allowed
+        # timeout
+        clickatell.session_start_time = datetime.now() - \
+                                            (clickatell.session_time_out * 2)
+        # next api.session_id call should call the auth url 
+        # because the session's timed out
+        clickatell.client.mock('GET', auth_url, {
+            'user': 'username',
+            'password': 'password',
+            'api_id': 'api_id'
+        }, response=clickatell.client.parse_content('OK: new_session_hash'))
+        self.assertEquals(clickatell.session_id, 'new_session_hash')
+        # make sure the URLs we expected to be called all actually did
+        self.assertTrue(clickatell.client.all_mocks_called())
 
 class AuthenticationTestCase(TestCase):
     """Test authentication schemes"""
@@ -145,6 +171,7 @@ class AuthenticationTestCase(TestCase):
         self.assertTrue(isinstance(err, ERRResponse))
         self.assertEquals(err.code, 1)
         self.assertEquals(err.reason, 'Authentication Failed')
+    
 
 class ResponseTestCase(TestCase):
     """Test parsing of response values into Response objects"""
