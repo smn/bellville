@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 base_url = "https://api.clickatell.com/http"
 auth_url = '%s/auth' % base_url
 sendmsg_url = '%s/sendmsg' % base_url
+querymsg_url = '%s/querymsg' % base_url
 ping_url = '%s/ping' % base_url
 
 class ClickatellTestCase(TestCase):
@@ -96,6 +97,44 @@ class ClickatellTestCase(TestCase):
         self.assertEquals(err.code, 301)
         self.assertEquals(err.reason, 'No Credit Left')
     
+    def test_querymsg(self):
+        clickatell = Clickatell('username', 'password', 'api_id', \
+                                    client_class=TestClient)
+        client = clickatell.client
+        # first auth
+        client.mock('GET', auth_url, {
+            'user': 'username',
+            'password': 'password',
+            'api_id': 'api_id'
+        }, response=client.parse_content('OK: sessionhash'))
+        # then send msg
+        client.mock('GET', sendmsg_url, {
+            'session_id': 'sessionhash',
+            'to': '27123456781',
+            'from': '27123456781',
+            'text': 'hello world'
+        }, response=client.parse_content('ID: apiMsgId To: 27123456781'))
+        # when checking the status respond with 002 - Message queued
+        client.mock('GET', querymsg_url, {
+            'session_id': 'sessionhash',
+            'apimsgid': 'apiMsgId'
+        }, response=client.parse_content('ID: apiMsgId Status: 002'))
+        
+        # run over the Mocked responses
+        [send_response] = clickatell.sendmsg(recipient='27123456781', 
+                                                sender='27123456781',
+                                                text='hello world')
+        [status_response] = clickatell.querymsg(apimsgid=send_response.value)
+        
+        # check the mocked session hash
+        self.assertEquals(clickatell.session_id, 'sessionhash')
+        # check the mocked sendmsg responses
+        self.assertEquals(send_response.value, 'apiMsgId')
+        self.assertEquals(send_response.extra['To'], '27123456781')
+        # check the mocked querymsg responses
+        self.assertEquals(status_response.value, 'apiMsgId')
+        self.assertEquals(status_response.extra['Status'], '002')
+        
 
 
 class SessionTestCase(TestCase):

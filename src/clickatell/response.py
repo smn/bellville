@@ -36,7 +36,7 @@ class Response(object):
         self.value, self.extra = self.parse_parts(data)
     
     def __repr__(self):
-        return "%s (%s, %s)" % (self.kind, self.data)
+        return "%s: %s" % (self.kind, self.data)
 
 class OKResponse(Response):
     kind = "OK"

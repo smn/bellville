@@ -25,13 +25,15 @@ class Clickatell(object):
         Get a new session id from Clickatell by authenticating with
         our username & password.
         """
-        [ok] = self.client.do('auth', {
+        [resp] = self.client.do('auth', {
             'user': self.username, 
             'password': self.password,
             'api_id': self.api_id
         })
         self.session_start_time = datetime.now()
-        return ok.value
+        if isinstance(resp, OKResponse):
+            return resp.value
+        raise ClickatellError, resp
     
     def session_expired(self):
         """
@@ -55,7 +57,7 @@ class Clickatell(object):
         if isinstance(resp, OKResponse):
             return True
         else:
-            raise ClickatellError, resp.data
+            raise ClickatellError, resp
     
     def sendmsg(self, **kwargs):
         if 'recipients' in kwargs:
@@ -70,3 +72,15 @@ class Clickatell(object):
             'from': sender,
             'text': text
         })
+    
+    def querymsg(self,**kwargs):
+        """
+        This command returns the status of a message. You can query the status 
+        with either the apimsgid or climsgid. The API Message ID (apimsgid) is 
+        the message ID returned by the Gateway when a message has been 
+        successfully submitted. If you specified your own unique client 
+        message ID (climsgid) on submission, you may query the message status 
+        using this value.
+        """
+        kwargs.update({'session_id': self.session_id})
+        return self.client.do('querymsg', kwargs)
