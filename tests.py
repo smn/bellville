@@ -97,7 +97,7 @@ class ClickatellTestCase(TestCase):
         self.assertEquals(err.code, 301)
         self.assertEquals(err.reason, 'No Credit Left')
     
-    def test_querymsg(self):
+    def test_querymsg_with_apimsgid(self):
         clickatell = Clickatell('username', 'password', 'api_id', \
                                     client_class=TestClient)
         client = clickatell.client
@@ -134,8 +134,20 @@ class ClickatellTestCase(TestCase):
         # check the mocked querymsg responses
         self.assertEquals(status_response.value, 'apiMsgId')
         self.assertEquals(status_response.extra['Status'], '002')
-        
-
+    
+    def test_sendmsg_recipient_validation(self):
+        clickatell = Clickatell('username','password','api_id', 
+                                    client_class=TestClient)
+        clickatell._session_id = "session_id"
+        clickatell.session_start_time = datetime.now()
+        self.assertFalse(clickatell.session_expired())
+        for recipient in ['+27123456781', '0027123456781']:
+            kwargs = {
+                'sender': '27123456781',
+                'recipient': recipient,
+                'text': 'hello world'
+            }
+            self.assertRaises(ClickatellError, clickatell.sendmsg, **kwargs)
 
 class SessionTestCase(TestCase):
     def test_session_timeout(self):

@@ -3,6 +3,7 @@ from clickatell import url
 from clickatell.client import Client
 from clickatell.response import OKResponse, ERRResponse
 from clickatell.errors import ClickatellError
+from clickatell.validators import send_msg_validator
 
 class Clickatell(object):
     session_start_time = None
@@ -60,18 +61,38 @@ class Clickatell(object):
             raise ClickatellError, resp
     
     def sendmsg(self, **kwargs):
+        
+        defaults = {
+        #     'callback': ,
+        #     'deliv_time': ,
+        #     'concat': ,
+        #     'max_credits': ,
+        #     'req_feat': ,
+        #     'queue': ,
+        #     'escalate': ,
+        #     'mo': ,
+        #     'cliMsgId': ,
+        #     'unicode': ,
+        #     'msg_type': ,
+        #     'udh': ,
+        #     'data': ,
+        #     'binary': ,
+        #     'scheduled_time': ,
+        }
+        
         if 'recipients' in kwargs:
             recipients = kwargs.pop('recipients')
         else:
             recipients = [kwargs.pop('recipient')]
-        sender = kwargs.pop('sender')
-        text = kwargs.pop('text')
-        return self.client.do('sendmsg', {
-            'session_id': self.session_id,
-            'to': ','.join(recipients),
-            'from': sender,
-            'text': text
+        
+        validate = send_msg_validator.dispatch
+        defaults.update({
+            'to': ','.join(validate('to', recipients)),
+            'from': validate('from', kwargs.pop('sender')),
+            'text': validate('text', kwargs.pop('text')),
+            'session_id': self.session_id
         })
+        return self.client.do('sendmsg', defaults)
     
     def querymsg(self,**kwargs):
         """
