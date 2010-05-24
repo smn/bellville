@@ -30,6 +30,7 @@ class Clickatell(object):
             'password': self.password,
             'api_id': self.api_id
         })
+        self.session_start_time = datetime.now()
         return ok.value
     
     def session_expired(self):

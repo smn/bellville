@@ -129,6 +129,25 @@ class SessionTestCase(TestCase):
         self.assertTrue(clickatell.ping())
         self.assertTrue(client.all_mocks_called())
     
+    def test_ping_error(self):
+        """
+        Pinging can raise an error for an invalid session_id
+        """
+        clickatell = Clickatell('username', 'password', 'api_id', \
+                                    client_class=TestClient)
+        client = clickatell.client
+        client.mock('GET', auth_url, {
+            'user': 'username',
+            'password': 'password',
+            'api_id': 'api_id'
+        }, response=client.parse_content('OK: somerandomhash'))
+        # when we ping return an error value as if the hash is now invalid
+        client.mock('GET', ping_url, {
+            'session_id': 'somerandomhash'
+        }, response=client.parse_content('ERR: 003, Session ID Expired'))
+        self.assertRaises(ClickatellError, clickatell.ping)
+        self.assertTrue(client.all_mocks_called())
+    
     def test_reauthentication_on_session_timeout(self):
         """
         If the session_id property is called when the session has actually 

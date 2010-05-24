@@ -27,11 +27,16 @@ class TestHttpClient(HttpClient):
                 del method_queue[index]
                 self.queue[method] = method_queue
                 return response
+        self.log_mocks()
         raise ClickatellError, 'No matching mocked data matches %s, %s, %s, %s' \
                                     % (method, url, data, headers)
     
     def all_mocks_called(self):
-        return all((queue == []) for method, queue in self.queue.items())
+        if all((queue == []) for method, queue in self.queue.items()):
+            return True
+        else:
+            self.log_mocks()
+            raise ClickatellError, "All mocks not called"
     
     def log_mocks(self):
         logging.debug("Mocked URLs:")
