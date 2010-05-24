@@ -1,9 +1,10 @@
 from clickatell.utils import Dispatcher
 from clickatell.errors import ClickatellError
+from datetime import datetime, timedelta
 
-class SendMsgValidator(Dispatcher):
+class Validator(Dispatcher):
     
-    def do_to(self, recipients):
+    def validate_to(self, recipients):
         if any([recipient.startswith('+') or recipient.startswith('0')
                 for recipient in recipients]):
             raise ClickatellError, "SMS messages need to be sent in the " \
@@ -14,7 +15,7 @@ class SendMsgValidator(Dispatcher):
                                     "spaces must be used."
         return recipients
     
-    def do_from(self, _from):
+    def validate_from(self, _from):
         if _from.isdigit() and len(_from) <= 16:
             return _from
         elif _from.isalpha() and len(_from) <= 11:
@@ -23,7 +24,29 @@ class SendMsgValidator(Dispatcher):
                                 "sender ID, can be either a valid international " \
                                 "format number between 1 and 16 characters " \
                                 "long, or an 11 character alphanumeric string."
-    def do_text(self, text):
+    def validate_text(self, text):
         return text
+    
+    def validate_timedelta(self, delta):
+        if isinstance(delta, timedelta):
+            minutes_from_days = delta.days * 24 * 60
+            minutes_from_seconds = delta.seconds / 60
+            return minutes_from_days + minutes_from_seconds
+        raise ClickatellError, "A timedelta object is required"
+    
+    def validate_timestamp(self, timestamp):
+        if isinstance(timestamp, datetime):
+            return timestamp.strftime("%Y-%m-%d %H:%M:%S") # MySQL format
+        raise ClickatellError, "A datetime object is required"
+    
+    def validate_number(self, value):
+        if str(value).isdigit():
+            return value
+        raise ClickatellError, "Must be a numeric value, max: %s" % maximum
+    
+    def validate(self, *args, **kwargs):
+        return self.dispatch(*args, **kwargs)
+    
 
-send_msg_validator = SendMsgValidator()
+validator = Validator(prefix="validate_")
+validate = validator.validate

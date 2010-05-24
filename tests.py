@@ -2,6 +2,7 @@ from unittest import TestCase
 from clickatell.api import Clickatell
 from clickatell.errors import ClickatellError
 from clickatell.response import ERRResponse, OKResponse
+from clickatell import constants as cc
 from clickatell.tests.mock import TestClient
 from datetime import datetime, timedelta
 
@@ -14,6 +15,19 @@ sendmsg_url = '%s/sendmsg' % base_url
 querymsg_url = '%s/querymsg' % base_url
 ping_url = '%s/ping' % base_url
 
+sendmsg_defaults = {
+    'callback': cc.CALLBACK_ALL,
+    'deliv_ack': cc.YES,
+    'req_feat': cc.FEAT_ALPHA + cc.FEAT_NUMER + cc.FEAT_DELIVACK,
+    'msg_type': cc.SMS_DEFAULT,
+}
+
+def merge_with_defaults(d):
+    tmp = {}
+    tmp.update(sendmsg_defaults)
+    tmp.update(d)
+    return tmp
+
 class ClickatellTestCase(TestCase):
     
     def setUp(self):
@@ -21,7 +35,8 @@ class ClickatellTestCase(TestCase):
         self.password = 'password'
         self.api_id = '123456'
         self.clickatell = Clickatell(self.username, self.password, \
-                                        self.api_id, client_class=TestClient)
+                                        self.api_id, client_class=TestClient,
+                                        sendmsg_defaults=sendmsg_defaults)
         client = self.clickatell.client
         client.mock('GET', auth_url, {
             'user': self.username,
@@ -31,25 +46,25 @@ class ClickatellTestCase(TestCase):
     
     def test_sendmsg(self):
         client = self.clickatell.client
-        client.mock('GET', sendmsg_url, {
+        client.mock('GET', sendmsg_url, merge_with_defaults({
             'session_id': 'session_id_hash',
             'to': '27123456789',
             'from': '27123456789',
             'text': 'hello world'
-        }, response=client.parse_content("ID: apimsgid"))
-        [id_] = self.clickatell.sendmsg(recipient='27123456789', 
+        }), response=client.parse_content("ID: apimsgid"))
+        [id_] = self.clickatell.sendmsg(recipients=['27123456789'], 
                                         sender='27123456789', 
                                         text='hello world')
         self.assertEquals(id_.value, 'apimsgid')
     
     def test_sendmsg_multiple_recipients(self):
         client = self.clickatell.client
-        client.mock('GET', sendmsg_url, {
+        client.mock('GET', sendmsg_url, merge_with_defaults({
             'session_id': 'session_id_hash',
             'to': '27123456781,27123456782',
             'from': '27123456789',
             'text': 'hello world'
-        }, response=client.parse_content("ID: apimsgid To: 27123456781\n" 
+        }), response=client.parse_content("ID: apimsgid To: 27123456781\n" 
                                             "ID: apimsgid To: 27123456782\n"))
         client.log_mocks()
         [id1, id2] = self.clickatell.sendmsg(recipients=[
@@ -65,12 +80,12 @@ class ClickatellTestCase(TestCase):
     
     def test_sendmsg_with_error(self):
         client = self.clickatell.client
-        client.mock('GET', sendmsg_url, {
+        client.mock('GET', sendmsg_url, merge_with_defaults({
             'session_id': 'session_id_hash',
             'to': '27123456782',
             'from': '27123456782',
             'text': 'hello world'
-        }, response=client.parse_content("ERR: 301, No Credit Left"))
+        }), response=client.parse_content("ERR: 301, No Credit Left"))
         [err] = self.clickatell.sendmsg(recipients=['27123456782'],
                                             sender='27123456782',
                                             text='hello world')
@@ -80,12 +95,12 @@ class ClickatellTestCase(TestCase):
     def test_sendmsg_with_mixed_results(self):
         client = self.clickatell.client
         # first one will succeed, second will fail because credit ran out
-        client.mock('GET', sendmsg_url, {
+        client.mock('GET', sendmsg_url, merge_with_defaults({
             'session_id': 'session_id_hash',
             'to': '27123456781,27123456782',
             'from': '27123456783',
             'text': 'hello world'
-        }, response=client.parse_content("OK: apiMsgId To: 27123456781\n"
+        }), response=client.parse_content("OK: apiMsgId To: 27123456781\n"
                                             "ERR: 301, No Credit Left\n"))
         [ok, err] = self.clickatell.sendmsg(recipients=[
                                                 '27123456781',
@@ -99,7 +114,8 @@ class ClickatellTestCase(TestCase):
     
     def test_querymsg_with_apimsgid(self):
         clickatell = Clickatell('username', 'password', 'api_id', \
-                                    client_class=TestClient)
+                                    client_class=TestClient,
+                                    sendmsg_defaults=sendmsg_defaults)
         client = clickatell.client
         # first auth
         client.mock('GET', auth_url, {
@@ -108,12 +124,12 @@ class ClickatellTestCase(TestCase):
             'api_id': 'api_id'
         }, response=client.parse_content('OK: sessionhash'))
         # then send msg
-        client.mock('GET', sendmsg_url, {
+        client.mock('GET', sendmsg_url, merge_with_defaults({
             'session_id': 'sessionhash',
             'to': '27123456781',
             'from': '27123456781',
             'text': 'hello world'
-        }, response=client.parse_content('ID: apiMsgId To: 27123456781'))
+        }), response=client.parse_content('ID: apiMsgId To: 27123456781'))
         # when checking the status respond with 002 - Message queued
         client.mock('GET', querymsg_url, {
             'session_id': 'sessionhash',
@@ -121,7 +137,7 @@ class ClickatellTestCase(TestCase):
         }, response=client.parse_content('ID: apiMsgId Status: 002'))
         
         # run over the Mocked responses
-        [send_response] = clickatell.sendmsg(recipient='27123456781', 
+        [send_response] = clickatell.sendmsg(recipients=['27123456781'],
                                                 sender='27123456781',
                                                 text='hello world')
         [status_response] = clickatell.querymsg(apimsgid=send_response.value)
@@ -137,14 +153,15 @@ class ClickatellTestCase(TestCase):
     
     def test_sendmsg_recipient_validation(self):
         clickatell = Clickatell('username','password','api_id', 
-                                    client_class=TestClient)
+                                    client_class=TestClient,
+                                    sendmsg_defaults=sendmsg_defaults)
         clickatell._session_id = "session_id"
         clickatell.session_start_time = datetime.now()
         self.assertFalse(clickatell.session_expired())
         for recipient in ['+27123456781', '0027123456781']:
             kwargs = {
                 'sender': '27123456781',
-                'recipient': recipient,
+                'recipients': [recipient],
                 'text': 'hello world'
             }
             self.assertRaises(ClickatellError, clickatell.sendmsg, **kwargs)
@@ -156,7 +173,8 @@ class SessionTestCase(TestCase):
         one minute past the allowed limit
         """
         clickatell = Clickatell("username", "password", "api_id", \
-                                client_class=TestClient)
+                                client_class=TestClient,
+                                sendmsg_defaults=sendmsg_defaults)
         delta = clickatell.session_time_out
         clickatell.session_start_time = datetime.now() - delta - \
                                                 timedelta(minutes=1)
@@ -167,7 +185,8 @@ class SessionTestCase(TestCase):
         Pinging resets the session timeout delay
         """
         clickatell = Clickatell('username', 'password', 'api_id', \
-                                    client_class=TestClient)
+                                    client_class=TestClient,
+                                    sendmsg_defaults=sendmsg_defaults)
         client = clickatell.client
         client.mock('GET', auth_url, {
             'user': 'username',
@@ -185,7 +204,8 @@ class SessionTestCase(TestCase):
         Pinging can raise an error for an invalid session_id
         """
         clickatell = Clickatell('username', 'password', 'api_id', \
-                                    client_class=TestClient)
+                                    client_class=TestClient,
+                                    sendmsg_defaults=sendmsg_defaults)
         client = clickatell.client
         client.mock('GET', auth_url, {
             'user': 'username',
@@ -205,7 +225,8 @@ class SessionTestCase(TestCase):
         timed out it should need to reauthenticate and get new a new session_id
         """
         clickatell = Clickatell("username", "password", "api_id", \
-                                    client_class=TestClient)
+                                    client_class=TestClient,
+                                    sendmsg_defaults=sendmsg_defaults)
         # manually set it for comparison later
         clickatell.session_start_time = datetime.now()
         clickatell._session_id = "old_session_hash"

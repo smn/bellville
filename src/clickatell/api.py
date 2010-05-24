@@ -3,16 +3,19 @@ from clickatell import url
 from clickatell.client import Client
 from clickatell.response import OKResponse, ERRResponse
 from clickatell.errors import ClickatellError
-from clickatell.validators import send_msg_validator
+from clickatell.validators import validate
+from clickatell import constants as cc
 
 class Clickatell(object):
     session_start_time = None
     session_time_out = timedelta(minutes=15)
 
-    def __init__(self, username, password, api_id, client_class=Client):
+    def __init__(self, username, password, api_id, client_class=Client, 
+                    sendmsg_defaults={}):
         self.username = username
         self.password = password
         self.api_id = api_id
+        self.sendmsg_defaults = sendmsg_defaults
         self.client = client_class()
     
     @property
@@ -60,39 +63,43 @@ class Clickatell(object):
         else:
             raise ClickatellError, resp
     
-    def sendmsg(self, **kwargs):
+    def sendmsg(self, **options):
+        # clone the instance defaults
+        options.update(self.sendmsg_defaults.copy())
         
-        defaults = {
-        #     'callback': ,
-        #     'deliv_time': ,
-        #     'concat': ,
-        #     'max_credits': ,
-        #     'req_feat': ,
-        #     'queue': ,
-        #     'escalate': ,
-        #     'mo': ,
-        #     'cliMsgId': ,
-        #     'unicode': ,
-        #     'msg_type': ,
-        #     'udh': ,
-        #     'data': ,
-        #     'binary': ,
-        #     'scheduled_time': ,
-        }
+        # timedeltas, validated to return minutes
+        timedeltas = ['deliv_time', 'validity']
+        for option in timedeltas:
+            if option in options:
+                options[option] = validate('timedelta', options.pop(option))
         
-        if 'recipients' in kwargs:
-            recipients = kwargs.pop('recipients')
-        else:
-            recipients = [kwargs.pop('recipient')]
+        # number, validated to ensure they are indeed numbers
+        numbers = ['concat', 'max_credits', 'req_feat']
+        for option in numbers:
+            if option in options:
+                options[option] = validate('number', options.pop(option))
         
-        validate = send_msg_validator.dispatch
-        defaults.update({
-            'to': ','.join(validate('to', recipients)),
-            'from': validate('from', kwargs.pop('sender')),
-            'text': validate('text', kwargs.pop('text')),
+        # timestamps, returned in Mysql timestamp format
+        timestamps = ['scheduled_time']
+        for option in timestamps:
+            if option in options:
+                options[option] = validate('timestamp', options.pop(option))
+        
+        # if from is specified then make sure something's been set as the
+        # req_feat parameter as well.
+        if 'sender' in options:
+            options['from'] = validate('from', options.pop('sender'))
+            if 'req_feat' not in options:
+                raise ClickatellError, 'When specifying `sender` you also '\
+                                        'need to specify the `req_feat` ' \
+                                        'parameter'
+        
+        options.update({
+            'to': ','.join(validate('to', options.pop('recipients'))),
+            'text': validate('text', options.pop('text')),
             'session_id': self.session_id
         })
-        return self.client.do('sendmsg', defaults)
+        return self.client.do('sendmsg', options)
     
     def querymsg(self,**kwargs):
         """
