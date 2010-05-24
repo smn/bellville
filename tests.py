@@ -111,6 +111,24 @@ class SessionTestCase(TestCase):
                                                 timedelta(minutes=1)
         self.assertTrue(clickatell.session_expired())
     
+    def test_ping(self):
+        """
+        Pinging resets the session timeout delay
+        """
+        clickatell = Clickatell('username', 'password', 'api_id', \
+                                    client_class=TestClient)
+        client = clickatell.client
+        client.mock('GET', auth_url, {
+            'user': 'username',
+            'password': 'password',
+            'api_id': 'api_id'
+        }, response=client.parse_content("OK: somerandomhash"))
+        client.mock('GET', ping_url, {
+            'session_id': 'somerandomhash'
+        }, response=client.parse_content("OK: "))
+        self.assertTrue(clickatell.ping())
+        self.assertTrue(client.all_mocks_called())
+    
     def test_reauthentication_on_session_timeout(self):
         """
         If the session_id property is called when the session has actually 

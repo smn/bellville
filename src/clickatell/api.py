@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 from clickatell import url
 from clickatell.client import Client
+from clickatell.response import OKResponse, ERRResponse
+from clickatell.errors import ClickatellError
 
 class Clickatell(object):
     session_start_time = None
@@ -41,6 +43,18 @@ class Clickatell(object):
             return True
         return (datetime.now() - self.session_start_time) >= \
                     self.session_time_out
+    
+    def ping(self):
+        """
+        Ping Clickatell to keep our session_id alive
+        """
+        [resp] = self.client.do('ping', {
+            'session_id': self.session_id
+        })
+        if isinstance(resp, OKResponse):
+            return True
+        else:
+            raise ClickatellError, resp.data
     
     def sendmsg(self, **kwargs):
         if 'recipients' in kwargs:
