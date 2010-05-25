@@ -9,12 +9,14 @@ from datetime import datetime, timedelta
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-base_url = "https://api.clickatell.com/http"
-auth_url = '%s/auth' % base_url
-sendmsg_url = '%s/sendmsg' % base_url
-querymsg_url = '%s/querymsg' % base_url
-ping_url = '%s/ping' % base_url
-getbalance_url = '%s/getbalance' % base_url
+base_url = "https://api.clickatell.com"
+http_url = '%s/http' % base_url
+auth_url = '%s/auth' % http_url
+sendmsg_url = '%s/sendmsg' % http_url
+querymsg_url = '%s/querymsg' % http_url
+ping_url = '%s/ping' % http_url
+getbalance_url = '%s/getbalance' % http_url
+check_coverage_url = '%s/utils/routeCoverage.php' % base_url
 
 sendmsg_defaults = {
     'callback': cc.CALLBACK_ALL,
@@ -156,8 +158,7 @@ class ClickatellTestCase(TestCase):
         clickatell = Clickatell('username','password','api_id', 
                                     client_class=TestClient,
                                     sendmsg_defaults=sendmsg_defaults)
-        clickatell._session_id = "session_id"
-        clickatell.session_start_time = datetime.now()
+        clickatell.session_id = "session_id"
         self.assertFalse(clickatell.session_expired())
         for recipient in ['+27123456781', '0027123456781']:
             kwargs = {
@@ -169,13 +170,59 @@ class ClickatellTestCase(TestCase):
     def test_getbalance(self):
         clickatell = Clickatell('username', 'password', 'api_id', 
                                     client_class=TestClient)
-        clickatell._session_id = "session_id"
-        clickatell.session_start_time = datetime.now()
+        clickatell.session_id = "session_id"
         self.assertFalse(clickatell.session_expired())
         clickatell.client.mock('GET', getbalance_url, {
             'session_id': 'session_id'
         }, response=clickatell.client.parse_content('Credit: 500.00'))
         self.assertEquals(clickatell.getbalance(), 500.00)
+    
+    def test_getbalance_with_error_response(self):
+        clickatell = Clickatell('username', 'password', 'api_id', 
+                                    client_class=TestClient)
+        clickatell.session_id = 'session_id'
+        clickatell.client.mock('GET', getbalance_url, {
+            'session_id': 'session_id'
+        }, response=clickatell.client.parse_content('ERR: 003, Session ID Expired'))
+        self.assertRaises(ClickatellError, clickatell.getbalance)
+    
+    def test_check_coverage(self):
+        clickatell = Clickatell('username', 'password', 'api_id',
+                                    client_class=TestClient)
+        clickatell.session_id = "session_id"
+        clickatell.client.mock('GET', check_coverage_url, {
+            'session_id': clickatell.session_id,
+            'msisdn': '27123456781'
+        }, response=clickatell.client.parse_content(
+                'OK:  This prefix is currently supported. Messages sent to ' \
+                'this prefix will be routed. Charge: 1'
+        ))
+        
+        resp = clickatell.check_coverage(msisdn='27123456781')
+        self.assertTrue(isinstance(resp, OKResponse))
+        self.assertEquals(resp.value, 'This prefix is currently supported. '\
+                                        'Messages sent to this prefix will '\
+                                        'be routed.')
+        self.assertEquals(resp.extra['Charge'], '1')
+    
+    def test_check_coverage_fail(self):
+        clickatell = Clickatell('username', 'password', 'api_id',
+                                    client_class=TestClient)
+        clickatell.session_id = "session_id"
+        clickatell.client.mock('GET', check_coverage_url, {
+            'session_id': clickatell.session_id,
+            'msisdn': '27123456781'
+        }, response=clickatell.client.parse_content(
+            'ERR: This prefix is not currently supported. Messages sent to '\
+            'this prefix will fail. Please contact support for assistance.'
+        ))
+        
+        resp = clickatell.check_coverage(msisdn='27123456781')
+        self.assertTrue(isinstance(resp, ERRResponse))
+        self.assertEquals(resp.value, 
+            'This prefix is not currently supported. Messages sent to this '\
+            'prefix will fail. Please contact support for assistance.')
+        
 
 class SessionTestCase(TestCase):
     def test_session_timeout(self):
@@ -187,7 +234,7 @@ class SessionTestCase(TestCase):
                                 client_class=TestClient,
                                 sendmsg_defaults=sendmsg_defaults)
         delta = clickatell.session_time_out
-        clickatell.session_start_time = datetime.now() - delta - \
+        clickatell._session_start_time = datetime.now() - delta - \
                                                 timedelta(minutes=1)
         self.assertTrue(clickatell.session_expired())
     
@@ -239,12 +286,11 @@ class SessionTestCase(TestCase):
                                     client_class=TestClient,
                                     sendmsg_defaults=sendmsg_defaults)
         # manually set it for comparison later
-        clickatell.session_start_time = datetime.now()
-        clickatell._session_id = "old_session_hash"
+        clickatell.session_id = "old_session_hash"
         self.assertEquals(clickatell.session_id, 'old_session_hash')
         # manually expire by setting the session_start_time beyond the allowed
         # timeout
-        clickatell.session_start_time = datetime.now() - \
+        clickatell._session_start_time = datetime.now() - \
                                             (clickatell.session_time_out * 2)
         # next api.session_id call should call the auth url 
         # because the session's timed out

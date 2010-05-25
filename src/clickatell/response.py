@@ -46,8 +46,18 @@ class ERRResponse(Response):
     
     def process(self, string):
         parts = string.split(", ", 1)
-        self.code = int(parts[0])
-        self.reason = ''.join(parts[1:]).strip() 
+        code = parts[0]
+        reason = ''.join(parts[1:]).strip() # ugly but always returns an empty
+                                            # string even if the list only has 
+                                            # one item
+        # Hideous but Clickatell is very "liberal" in how they format their
+        # error responses
+        if code.isdigit():
+            self.code = int(code)
+            self.reason = reason
+        else:
+            self.code = 0
+            self.value = code
 
 class IDResponse(Response):
     kind = "ID"

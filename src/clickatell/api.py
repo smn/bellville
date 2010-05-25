@@ -7,7 +7,7 @@ from clickatell.validators import validate
 from clickatell import constants as cc
 
 class Clickatell(object):
-    session_start_time = None
+    _session_start_time = None
     session_time_out = timedelta(minutes=15)
     
     def __init__(self, username, password, api_id, client_class=Client, \
@@ -21,7 +21,13 @@ class Clickatell(object):
     @property
     def session_id(self):
         if self.session_expired():
-            self._session_id = self.get_new_session_id()
+            self.session_id = self.get_new_session_id()
+        return self._session_id
+    
+    @session_id.setter
+    def session_id(self, session_token):
+        self._session_start_time = datetime.now()
+        self._session_id = session_token
         return self._session_id
     
     def get_new_session_id(self):
@@ -34,7 +40,7 @@ class Clickatell(object):
             'password': self.password,
             'api_id': self.api_id
         })
-        self.session_start_time = datetime.now()
+        self._session_start_time = datetime.now()
         if isinstance(resp, OKResponse):
             return resp.value
         raise ClickatellError, resp
@@ -46,9 +52,9 @@ class Clickatell(object):
         """
         # If session_start_time hasn't been set then we do not have
         # a session yet
-        if not self.session_start_time:
+        if not self._session_start_time:
             return True
-        return (datetime.now() - self.session_start_time) >= \
+        return (datetime.now() - self._session_start_time) >= \
                     self.session_time_out
     
     def ping(self):
@@ -120,4 +126,12 @@ class Clickatell(object):
         if isinstance(resp, CreditResponse):
             return resp.value
         raise ClickatellError, resp
-            
+    
+    def check_coverage(self, msisdn):
+        coverage_url = "%s/routeCoverage.php" % self.client.util_url
+        results = self.client.get(coverage_url, {
+            'msisdn': msisdn,
+            'session_id': self.session_id
+        })
+        [resp] = self.client.process_response(results)
+        return resp
