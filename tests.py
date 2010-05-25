@@ -275,7 +275,7 @@ class ClickatellTestCase(TestCase):
         # it should start the batch
         client.mock('GET', batch_start_url, merge_with_defaults({
             'session_id': clickatell.session_id,
-            'template': 'Hello #name# #surname#',
+            'template': 'Hello #field1# #field2#',
             'from': '27123456789'
         }), response=client.parse_content('ID: batch_id'))
         # it should send two messages via the batch
@@ -283,15 +283,15 @@ class ClickatellTestCase(TestCase):
             'session_id': clickatell.session_id,
             'batch_id': 'batch_id',
             'to': '27123456781',
-            'name': 'Foo 1',
-            'surname': 'Bar 1'
+            'field1': 'Foo 1',
+            'field2': 'Bar 1'
         }, response=client.parse_content('ID: apimsgid1'))
         client.mock('GET', batch_send_url, {
             'session_id': clickatell.session_id,
             'batch_id': 'batch_id',
             'to': '27123456782',
-            'name': 'Foo 2',
-            'surname': 'Bar 2'
+            'field1': 'Foo 2',
+            'field2': 'Bar 2'
         }, response=client.parse_content('ID: apimsgid2'))
         # it should end the batch
         client.mock('GET', batch_end_url, {
@@ -303,30 +303,30 @@ class ClickatellTestCase(TestCase):
     def test_batch_send_with_context_manager(self):
         clickatell = self._setup_clickatell_for_batch_test()
         batch = clickatell.batch(sender='27123456789', 
-                                    template='Hello #name# #surname#')
+                                    template='Hello #field1# #field2#')
         with batch:
             batch.sendmsg(to='27123456781', context={
-                'name': 'Foo 1', 
-                'surname':'Bar 1'
+                'field1': 'Foo 1', 
+                'field2':'Bar 1'
             })
             batch.sendmsg(to='27123456782', context={
-                'name': 'Foo 2', 
-                'surname':'Bar 2'
+                'field1': 'Foo 2', 
+                'field2':'Bar 2'
             })
         self.assertTrue(clickatell.client.all_mocks_called())
     
     def test_batch_send_without_context_manager(self):
         clickatell = self._setup_clickatell_for_batch_test()
         batch = clickatell.batch(sender='27123456789',
-                                    template='Hello #name# #surname#')
+                                    template='Hello #field1# #field2#')
         batch_id = batch.start()
         batch.sendmsg(to='27123456781', batch_id=batch_id, context={
-            'name': 'Foo 1', 
-            'surname':'Bar 1'
+            'field1': 'Foo 1', 
+            'field2':'Bar 1'
         })
         batch.sendmsg(to='27123456782', batch_id=batch_id, context={
-            'name': 'Foo 2', 
-            'surname':'Bar 2'
+            'field1': 'Foo 2', 
+            'field2':'Bar 2'
         })
         batch.end(batch_id)
         self.assertTrue(clickatell.client.all_mocks_called())
