@@ -16,23 +16,36 @@ class Batch(object):
     
     def __enter__(self, *args, **kwargs):
         self.batch_id = self.start()
+        return self
     
     def __exit__(self, *args, **kwargs):
         self.end(self.batch_id)
     
     def sendmsg(self, context={}, **options):
-        self.batch_id = options.get('batch_id') or self.batch_id
-        if not self.batch_id:
-            raise ClickatellError, "Call start() before send()"
+        batch_id = options.get('batch_id', self.batch_id)
+        if not batch_id:
+            raise ClickatellError, "No batch_id set"
         
         options = validator.validate(options)
         options.update(context)
         options.update({
             'session_id': self.clickatell.session_id,
-            'batch_id': self.batch_id,
+            'batch_id': batch_id,
         })
         [resp] = self.clickatell.client.batch('senditem', options)
         return resp
+    
+    def quicksend(self, **options):
+        batch_id = options.get('batch_id', self.batch_id)
+        if not batch_id:
+            raise ClickatellError, 'No batch_id set'
+        options = validator.validate(options)
+        options.update({
+            'session_id': self.clickatell.session_id,
+            'batch_id': batch_id,
+            'to': validator.dispatch('to', options.pop('recipients'))
+        })
+        return self.clickatell.client.batch('quicksend', options)
     
     def start(self):
         options = self.options.copy()
@@ -124,7 +137,7 @@ class Clickatell(object):
         options.update(self.sendmsg_defaults.copy())
         options = validator.validate(options)
         options.update({
-            'to': ','.join(validator.dispatch('to', options.pop('recipients'))),
+            'to': validator.dispatch('to', options.pop('recipients')),
             'text': validator.dispatch('text', options.pop('text')),
             'session_id': self.session_id
         })

@@ -13,7 +13,7 @@ class Validator(Dispatcher):
                                     "leading zero to the number and no " \
                                     "special characters such as '+' or " \
                                     "spaces must be used."
-        return recipients
+        return ','.join(recipients)
     
     def validate_from(self, _from):
         if _from.isdigit() and len(_from) <= 16:

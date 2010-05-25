@@ -25,7 +25,7 @@ check_coverage_url = '%s/routeCoverage.php' % utils_url
 
 batch_start_url = '%s/startbatch' % http_batch_url
 batch_send_url = '%s/senditem' % http_batch_url
-quick_send_url = '%s/quicksend' % http_batch_url
+batch_quicksend_url = '%s/quicksend' % http_batch_url
 batch_end_url = '%s/endbatch' % http_batch_url
 
 sendmsg_defaults = {
@@ -329,6 +329,43 @@ class ClickatellTestCase(TestCase):
             'field2':'Bar 2'
         })
         batch.end(batch_id)
+        self.assertTrue(clickatell.client.all_mocks_called())
+    
+    def test_quicksend(self):
+        clickatell = Clickatell('username', 'password', 'api_id', 
+                                    client_class=TestClient, 
+                                    sendmsg_defaults=sendmsg_defaults)
+        clickatell.session_id = 'session_id'
+        client = clickatell.client
+        # it should start the batch
+        client.mock('GET', batch_start_url, merge_with_defaults({
+            'session_id': clickatell.session_id,
+            'template': 'Hello world!',
+            'from': '27123456789'
+        }), response=client.parse_content('ID: batch_id'))
+        # it should send two messages via the batch
+        client.mock('GET', batch_quicksend_url, {
+            'session_id': clickatell.session_id,
+            'batch_id': 'batch_id',
+            'to': '27123456781,27123456782,27123456783'
+        }, response=client.parse_content('ID: apimsgid1\n' \
+                                            'ID: apimsgid2\n' \
+                                            'ID: apimsgid3\n'))
+        # it should end the batch
+        client.mock('GET', batch_end_url, {
+            'session_id': clickatell.session_id,
+            'batch_id': 'batch_id'
+        }, response=client.parse_content('OK'))
+        with clickatell.batch(sender='27123456789', 
+                                template='Hello world!') as batch:
+            [apimsgid1, apimsgid2, apimsgid3] = batch.quicksend(recipients=[
+                '27123456781',
+                '27123456782',
+                '27123456783',
+            ])
+        self.assertEquals(apimsgid1.value, 'apimsgid1')
+        self.assertEquals(apimsgid2.value, 'apimsgid2')
+        self.assertEquals(apimsgid3.value, 'apimsgid3')
         self.assertTrue(clickatell.client.all_mocks_called())
     
 class SessionTestCase(TestCase):
