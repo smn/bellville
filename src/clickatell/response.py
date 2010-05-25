@@ -3,7 +3,7 @@ import re
 class Response(object):
     key_value_pattern = re.compile(r'([a-zA-Z]+)\: ([a-zA-Z0-9]+)')
     
-    def __init__(self, data):
+    def __init__(self, data=''):
         self.data = data
         self.process(self.data)
     

@@ -11,13 +11,22 @@ logging.basicConfig(level=logging.DEBUG)
 
 base_url = "https://api.clickatell.com"
 http_url = '%s/http' % base_url
+utils_url = '%s/utils' % base_url
+http_batch_url = '%s/http_batch' % base_url
+
 auth_url = '%s/auth' % http_url
 sendmsg_url = '%s/sendmsg' % http_url
 querymsg_url = '%s/querymsg' % http_url
 ping_url = '%s/ping' % http_url
 getbalance_url = '%s/getbalance' % http_url
 getmsgcharge_url = '%s/getmsgcharge' % http_url
-check_coverage_url = '%s/utils/routeCoverage.php' % base_url
+
+check_coverage_url = '%s/routeCoverage.php' % utils_url
+
+batch_start_url = '%s/startbatch' % http_batch_url
+batch_send_url = '%s/senditem' % http_batch_url
+quick_send_url = '%s/quicksend' % http_batch_url
+batch_end_url = '%s/endbatch' % http_batch_url
 
 sendmsg_defaults = {
     'callback': cc.CALLBACK_ALL,
@@ -168,6 +177,7 @@ class ClickatellTestCase(TestCase):
                 'text': 'hello world'
             }
             self.assertRaises(ClickatellError, clickatell.sendmsg, **kwargs)
+    
     def test_getbalance(self):
         clickatell = Clickatell('username', 'password', 'api_id', 
                                     client_class=TestClient)
@@ -178,7 +188,7 @@ class ClickatellTestCase(TestCase):
         }, response=clickatell.client.parse_content('Credit: 500.00'))
         self.assertEquals(clickatell.getbalance(), 500.00)
     
-    def test_getbalance_with_error_response(self):
+    def test_getbalance_fail(self):
         clickatell = Clickatell('username', 'password', 'api_id', 
                                     client_class=TestClient)
         clickatell.session_id = 'session_id'
@@ -239,7 +249,7 @@ class ClickatellTestCase(TestCase):
         self.assertTrue(isinstance(resp, ApiMsgIdResponse))
         self.assertEquals(resp.value, 'apimsgid')
         self.assertEquals(resp.extra, {'charge': '1', 'status': '002'})
-        
+    
     def test_getmsgcharge_fail(self):
         clickatell = Clickatell('username', 'password', 'api_id',
                                     client_class=TestClient)
@@ -255,8 +265,72 @@ class ClickatellTestCase(TestCase):
         self.assertTrue(isinstance(resp, ERRResponse))
         self.assertEquals(resp.code, 108)
         self.assertEquals(resp.reason, 'Invalid or missing API ID')
-
-
+    
+    def _setup_clickatell_for_batch_test(self):
+        clickatell = Clickatell('username', 'password', 'api_id', 
+                                    client_class=TestClient, 
+                                    sendmsg_defaults=sendmsg_defaults)
+        clickatell.session_id = 'session_id'
+        client = clickatell.client
+        # it should start the batch
+        client.mock('GET', batch_start_url, merge_with_defaults({
+            'session_id': clickatell.session_id,
+            'template': 'Hello #name# #surname#',
+            'from': '27123456789'
+        }), response=client.parse_content('ID: batch_id'))
+        # it should send two messages via the batch
+        client.mock('GET', batch_send_url, {
+            'session_id': clickatell.session_id,
+            'batch_id': 'batch_id',
+            'to': '27123456781',
+            'name': 'Foo 1',
+            'surname': 'Bar 1'
+        }, response=client.parse_content('ID: apimsgid1'))
+        client.mock('GET', batch_send_url, {
+            'session_id': clickatell.session_id,
+            'batch_id': 'batch_id',
+            'to': '27123456782',
+            'name': 'Foo 2',
+            'surname': 'Bar 2'
+        }, response=client.parse_content('ID: apimsgid2'))
+        # it should end the batch
+        client.mock('GET', batch_end_url, {
+            'session_id': clickatell.session_id,
+            'batch_id': 'batch_id'
+        }, response=client.parse_content('OK'))
+        return clickatell
+    
+    def test_batch_send_with_context_manager(self):
+        clickatell = self._setup_clickatell_for_batch_test()
+        batch = clickatell.batch(sender='27123456789', 
+                                    template='Hello #name# #surname#')
+        with batch:
+            batch.sendmsg(to='27123456781', context={
+                'name': 'Foo 1', 
+                'surname':'Bar 1'
+            })
+            batch.sendmsg(to='27123456782', context={
+                'name': 'Foo 2', 
+                'surname':'Bar 2'
+            })
+        self.assertTrue(clickatell.client.all_mocks_called())
+    
+    def test_batch_send_without_context_manager(self):
+        clickatell = self._setup_clickatell_for_batch_test()
+        batch = clickatell.batch(sender='27123456789',
+                                    template='Hello #name# #surname#')
+        batch_id = batch.start()
+        batch.sendmsg(to='27123456781', batch_id=batch_id, context={
+            'name': 'Foo 1', 
+            'surname':'Bar 1'
+        })
+        batch.sendmsg(to='27123456782', batch_id=batch_id, context={
+            'name': 'Foo 2', 
+            'surname':'Bar 2'
+        })
+        batch.end(batch_id)
+        self.assertTrue(clickatell.client.all_mocks_called())
+    
 class SessionTestCase(TestCase):
     def test_session_timeout(self):
         """
@@ -346,7 +420,7 @@ class AuthenticationTestCase(TestCase):
             'password': 'password',
             'api_id': '123456'
         }, response=client.parse_content("OK: somerandomhash"))
-        [ok] = client.do('auth', {
+        [ok] = client.http('auth', {
             'user': 'username', 
             'password': 'password', 
             'api_id': '123456'
@@ -362,7 +436,7 @@ class AuthenticationTestCase(TestCase):
             'password': 'password',
             'api_id': '123456'
         }, response=client.parse_content('ERR: 001, Authentication Failed'))
-        [err] = client.do('auth', {
+        [err] = client.http('auth', {
             'user': 'username', 
             'password': 'password', 
             'api_id': '123456'

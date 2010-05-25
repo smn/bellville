@@ -44,9 +44,35 @@ class Validator(Dispatcher):
             return value
         raise ClickatellError, "Must be a numeric value, max: %s" % maximum
     
-    def validate(self, *args, **kwargs):
-        return self.dispatch(*args, **kwargs)
-    
+    def validate(self, options):
+        # timedeltas, validated to return minutes
+        timedeltas = ['deliv_time', 'validity']
+        for option in timedeltas:
+            if option in options:
+                options[option] = self.dispatch('timedelta', options.pop(option))
+        
+        # number, validated to ensure they are indeed numbers
+        numbers = ['concat', 'max_credits', 'req_feat']
+        for option in numbers:
+            if option in options:
+                options[option] = self.dispatch('number', options.pop(option))
+        
+        # timestamps, returned in Mysql timestamp format
+        timestamps = ['scheduled_time']
+        for option in timestamps:
+            if option in options:
+                options[option] = self.dispatch('timestamp', options.pop(option))
+        
+        # if from is specified then make sure something's been set as the
+        # req_feat parameter as well.
+        if 'sender' in options:
+            options['from'] = self.dispatch('from', options.pop('sender'))
+            if 'req_feat' not in options:
+                raise ClickatellError, 'When specifying `sender` you also '\
+                                        'need to specify the `req_feat` ' \
+                                        'parameter'
+        return options
+        
 
 validator = Validator(prefix="validate_")
 validate = validator.validate

@@ -25,7 +25,8 @@ class Client(HttpClient):
     
     base_url = "https://api.clickatell.com"
     http_url = "%s/http" % base_url
-    util_url = "%s/utils" % base_url
+    http_batch_url = "%s/http_batch" % base_url
+    utils_url = "%s/utils" % base_url
     
     def __init__(self):
         self.dispatcher = ResponseDispatcher()
@@ -33,7 +34,16 @@ class Client(HttpClient):
     def process_response(self, data):
         return [self.dispatcher.dispatch(*response) for response in data]
     
-    def do(self, command, kwargs={}):
-        response = self.get('%s/%s' % (self.http_url, command), kwargs)
+    def call(self, url, kwargs={}):
+        response = self.get(url, kwargs)
         logging.debug("Got response: %s" % response)
         return self.process_response(response)
+    
+    def http(self, command, kwargs={}):
+        return self.call('%s/%s' % (self.http_url, command), kwargs)
+    
+    def batch(self, command, kwargs={}):
+        return self.call('%s/%s' % (self.http_batch_url, command), kwargs)
+    
+    def utils(self, command, kwargs={}):
+        return self.call('%s/%s' % (self.utils_url, command), kwargs)
