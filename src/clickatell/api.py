@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from clickatell import url
 from clickatell.client import Client
-from clickatell.response import OKResponse, ERRResponse
+from clickatell.response import OKResponse, ERRResponse, CreditResponse
 from clickatell.errors import ClickatellError
 from clickatell.validators import validate
 from clickatell import constants as cc
@@ -9,8 +9,8 @@ from clickatell import constants as cc
 class Clickatell(object):
     session_start_time = None
     session_time_out = timedelta(minutes=15)
-
-    def __init__(self, username, password, api_id, client_class=Client, 
+    
+    def __init__(self, username, password, api_id, client_class=Client, \
                     sendmsg_defaults={}):
         self.username = username
         self.password = password
@@ -112,3 +112,12 @@ class Clickatell(object):
         """
         kwargs.update({'session_id': self.session_id})
         return self.client.do('querymsg', kwargs)
+    
+    def getbalance(self):
+        [resp] = self.client.do('getbalance', {
+            'session_id': self.session_id
+        })
+        if isinstance(resp, CreditResponse):
+            return resp.value
+        raise ClickatellError, resp
+            

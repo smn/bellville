@@ -14,6 +14,7 @@ auth_url = '%s/auth' % base_url
 sendmsg_url = '%s/sendmsg' % base_url
 querymsg_url = '%s/querymsg' % base_url
 ping_url = '%s/ping' % base_url
+getbalance_url = '%s/getbalance' % base_url
 
 sendmsg_defaults = {
     'callback': cc.CALLBACK_ALL,
@@ -165,6 +166,16 @@ class ClickatellTestCase(TestCase):
                 'text': 'hello world'
             }
             self.assertRaises(ClickatellError, clickatell.sendmsg, **kwargs)
+    def test_getbalance(self):
+        clickatell = Clickatell('username', 'password', 'api_id', 
+                                    client_class=TestClient)
+        clickatell._session_id = "session_id"
+        clickatell.session_start_time = datetime.now()
+        self.assertFalse(clickatell.session_expired())
+        clickatell.client.mock('GET', getbalance_url, {
+            'session_id': 'session_id'
+        }, response=clickatell.client.parse_content('Credit: 500.00'))
+        self.assertEquals(clickatell.getbalance(), 500.00)
 
 class SessionTestCase(TestCase):
     def test_session_timeout(self):

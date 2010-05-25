@@ -51,3 +51,9 @@ class ERRResponse(Response):
 
 class IDResponse(Response):
     kind = "ID"
+
+class CreditResponse(Response):
+    kind = "Credit"
+    
+    def process(self, string):
+        self.value = float(string)

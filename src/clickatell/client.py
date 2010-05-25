@@ -1,6 +1,6 @@
 import logging
 from clickatell.http import HttpClient
-from clickatell.response import OKResponse, ERRResponse, IDResponse
+from clickatell.response import OKResponse, ERRResponse, IDResponse, CreditResponse
 from clickatell.errors import ClickatellError
 from clickatell.utils import Dispatcher
 
@@ -14,6 +14,9 @@ class ResponseDispatcher(Dispatcher):
     
     def do_id(self, *args, **kwargs):
         return IDResponse(*args)
+    
+    def do_credit(self, *args, **kwargs):
+        return CreditResponse(*args)
     
 class Client(HttpClient):
     
