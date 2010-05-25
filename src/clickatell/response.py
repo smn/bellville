@@ -1,7 +1,6 @@
 import re
 
 class Response(object):
-    kind = None
     key_value_pattern = re.compile(r'([a-zA-Z]+)\: ([a-zA-Z0-9]+)')
     
     def __init__(self, data):
@@ -36,13 +35,12 @@ class Response(object):
         self.value, self.extra = self.parse_parts(data)
     
     def __repr__(self):
-        return "%s: %s" % (self.kind, self.data)
+        return "%s: %s" % (self.__class__.__name__, self.data)
 
 class OKResponse(Response):
-    kind = "OK"
-    
+    pass
+
 class ERRResponse(Response):
-    kind = "ERR"
     
     def process(self, string):
         parts = string.split(", ", 1)
@@ -59,11 +57,14 @@ class ERRResponse(Response):
             self.code = 0
             self.value = code
 
-class IDResponse(Response):
-    kind = "ID"
+class IDResponse(Response): 
+    pass
 
 class CreditResponse(Response):
     kind = "Credit"
     
     def process(self, string):
         self.value = float(string)
+
+class ApiMsgIdResponse(Response):
+    pass

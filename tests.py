@@ -1,7 +1,7 @@
 from unittest import TestCase
 from clickatell.api import Clickatell
 from clickatell.errors import ClickatellError
-from clickatell.response import ERRResponse, OKResponse
+from clickatell.response import ERRResponse, OKResponse, ApiMsgIdResponse
 from clickatell import constants as cc
 from clickatell.tests.mock import TestClient
 from datetime import datetime, timedelta
@@ -16,6 +16,7 @@ sendmsg_url = '%s/sendmsg' % http_url
 querymsg_url = '%s/querymsg' % http_url
 ping_url = '%s/ping' % http_url
 getbalance_url = '%s/getbalance' % http_url
+getmsgcharge_url = '%s/getmsgcharge' % http_url
 check_coverage_url = '%s/utils/routeCoverage.php' % base_url
 
 sendmsg_defaults = {
@@ -222,7 +223,39 @@ class ClickatellTestCase(TestCase):
         self.assertEquals(resp.value, 
             'This prefix is not currently supported. Messages sent to this '\
             'prefix will fail. Please contact support for assistance.')
+    
+    def test_getmsgcharge(self):
+        clickatell = Clickatell('username', 'password', 'api_id',
+                                    client_class=TestClient)
+        clickatell.session_id = "session_id"
+        clickatell.client.mock('GET', getmsgcharge_url, {
+            'session_id': clickatell.session_id,
+            'apimsgid': 'apimsgid'
+        }, response=clickatell.client.parse_content(
+            'apiMsgId: apimsgid charge: 1 status: 002'
+        ))
         
+        resp = clickatell.getmsgcharge(apimsgid='apimsgid')
+        self.assertTrue(isinstance(resp, ApiMsgIdResponse))
+        self.assertEquals(resp.value, 'apimsgid')
+        self.assertEquals(resp.extra, {'charge': '1', 'status': '002'})
+        
+    def test_getmsgcharge_fail(self):
+        clickatell = Clickatell('username', 'password', 'api_id',
+                                    client_class=TestClient)
+        clickatell.session_id = "session_id"
+        clickatell.client.mock('GET', getmsgcharge_url, {
+            'session_id': clickatell.session_id,
+            'apimsgid': 'apimsgid'
+        }, response=clickatell.client.parse_content(
+            'ERR: 108, Invalid or missing API ID'
+        ))
+        
+        resp = clickatell.getmsgcharge(apimsgid='apimsgid')
+        self.assertTrue(isinstance(resp, ERRResponse))
+        self.assertEquals(resp.code, 108)
+        self.assertEquals(resp.reason, 'Invalid or missing API ID')
+
 
 class SessionTestCase(TestCase):
     def test_session_timeout(self):

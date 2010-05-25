@@ -26,9 +26,12 @@ class Clickatell(object):
     
     @session_id.setter
     def session_id(self, session_token):
-        self._session_start_time = datetime.now()
+        self.reset_session_timeout()
         self._session_id = session_token
         return self._session_id
+    
+    def reset_session_timeout(self):
+        self._session_start_time = datetime.now()
     
     def get_new_session_id(self):
         """
@@ -40,7 +43,6 @@ class Clickatell(object):
             'password': self.password,
             'api_id': self.api_id
         })
-        self._session_start_time = datetime.now()
         if isinstance(resp, OKResponse):
             return resp.value
         raise ClickatellError, resp
@@ -65,6 +67,7 @@ class Clickatell(object):
             'session_id': self.session_id
         })
         if isinstance(resp, OKResponse):
+            self.reset_session_timeout()
             return True
         else:
             raise ClickatellError, resp
@@ -134,4 +137,11 @@ class Clickatell(object):
             'session_id': self.session_id
         })
         [resp] = self.client.process_response(results)
+        return resp
+    
+    def getmsgcharge(self, apimsgid):
+        [resp] = self.client.do('getmsgcharge', {
+            'session_id': self.session_id,
+            'apimsgid': apimsgid
+        })
         return resp

@@ -1,22 +1,25 @@
 import logging
 from clickatell.http import HttpClient
-from clickatell.response import OKResponse, ERRResponse, IDResponse, CreditResponse
+from clickatell import response
 from clickatell.errors import ClickatellError
 from clickatell.utils import Dispatcher
 
 class ResponseDispatcher(Dispatcher):
     
     def do_ok(self, *args, **kwargs):
-        return OKResponse(*args)
+        return response.OKResponse(*args)
     
     def do_err(self, *args, **kwargs):
-        return ERRResponse(*args)
+        return response.ERRResponse(*args)
     
     def do_id(self, *args, **kwargs):
-        return IDResponse(*args)
+        return response.IDResponse(*args)
     
     def do_credit(self, *args, **kwargs):
-        return CreditResponse(*args)
+        return response.CreditResponse(*args)
+    
+    def do_apimsgid(self, *args, **kwargs):
+        return response.ApiMsgIdResponse(*args)
     
 class Client(HttpClient):
     
