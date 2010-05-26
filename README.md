@@ -188,3 +188,15 @@ Sending a quick message to multiple recipients:
     >>> apimsgid3
     ERRResponse: 301, No Credit Left To: 27123456783
     >>> 
+
+
+Todo:
+-----
+
+Stuff that hasn't been implemented yet is:
+
+    1. deletion of queued messages
+    2. MMS push
+    3. WAP push service indication
+    4. Token voucher payment
+    5. 8bit messaging
