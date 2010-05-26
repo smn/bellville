@@ -155,6 +155,21 @@ The responses from the `batch.sendmsg()` method are the same as from `clickatell
     ERRResponse: 301, No Credit Left
     >>> # shucks
 
+For the `with` statement to work you'll need Python 2.6 or higher. It can work in Python 2.5 if you manually enable it with: 
+    
+    >>> from __future__ import with_statement
+
+If you're not wanting to use the context manager you can manually call `batch.start()` and `batch.end()` with the `batch_id` argument.
+
+    >>> batch = clickatell.batch(sender='27123456789', 
+    ...                             template='Hello #field1# #field2#')
+    >>> batch_id = batch.start()
+    >>> batch.sendmsg(to='...', batch_id=batch_id, context={...})
+    >>> batch.sendmsg(to='...', batch_id=batch_id, context={...})
+    >>> batch.sendmsg(to='...', batch_id=batch_id, context={...})
+    >>> batch.end(batch_id)
+
+
 Sending a quick message to multiple recipients:
 -----------------------------------------------
 
