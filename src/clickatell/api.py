@@ -15,13 +15,22 @@ class Batch(object):
         self.batch_id = None
     
     def __enter__(self, *args, **kwargs):
+        """Enter the managed context, calling start() and storing
+        the batch_id"""
         self.batch_id = self.start()
         return self
     
     def __exit__(self, *args, **kwargs):
+        """Exit the managed context, calling end() with the batch_id"""
         self.end(self.batch_id)
     
     def sendmsg(self, context={}, **options):
+        """
+        Sending messages existing batches.
+        
+        Note: The fields 1-N that you defined in the template are used to 
+              optionally personalise the message.
+        """
         batch_id = options.get('batch_id', self.batch_id)
         if not batch_id:
             raise ClickatellError, "No batch_id set"
@@ -36,6 +45,18 @@ class Batch(object):
         return resp
     
     def quicksend(self, **options):
+        """
+        Where one has the requirement to send the same message to multiple 
+        recipients, you can use the quicksend command. This command offers 
+        low overhead and maximum throughput. It is essentially a reference 
+        to a predefined template and a string of destination addresses.
+        
+        Note: quicksend does not allow for templating
+        """
+        
+        if 'context' in options:
+            raise ClickatellError, 'context not allowed for quicksend()'
+        
         batch_id = options.get('batch_id', self.batch_id)
         if not batch_id:
             raise ClickatellError, 'No batch_id set'
@@ -47,8 +68,20 @@ class Batch(object):
         })
         return self.clickatell.client.batch('quicksend', options)
     
-    def start(self):
-        options = self.options.copy()
+    def start(self, options={}):
+        """
+        Once you have issued this command, you will be returned a batch ID 
+        that is to be used when sending multiple batch items. Included 
+        functionality also allows for message merging where you can substitute 
+        fields that you have defined in your template. The field names are 
+        called field1 though to fieldN.
+        
+        This command can take all the parameters of sendmsg, with the addition 
+        of a template, and the exception of both the destination address and 
+        the text fields. The template parameter must be URL encoded. It must 
+        be used before either the senditem or quicksend command.
+        """
+        options.update(self.options)
         options.update({
             'session_id': self.clickatell.session_id
         })
@@ -58,6 +91,10 @@ class Batch(object):
         raise ClickatellError, resp
     
     def end(self, batch_id):
+        """
+        This command ends a batch and is not required (following a batch send). 
+        Batches will expire automatically after 24 hours.
+        """
         [resp] = self.clickatell.client.batch('endbatch', {
             'session_id': self.clickatell.session_id,
             'batch_id': batch_id
@@ -67,9 +104,7 @@ class Batch(object):
         raise ClickatellError, resp
 
 class Clickatell(object):
-    _session_start_time = None
-    session_time_out = timedelta(minutes=15)
-    
+    SESSION_TIME_OUT = timedelta(minutes=15)
     def __init__(self, username, password, api_id, client_class=Client,
                     sendmsg_defaults={}):
         self.username = username
@@ -77,15 +112,27 @@ class Clickatell(object):
         self.api_id = api_id
         self.sendmsg_defaults = sendmsg_defaults
         self.client = client_class()
+        self._session_start_time = None
     
     @property
     def session_id(self):
+        """
+        Returns a session id, used for authenticating against all of
+        Clickatell's services.
+        
+        If the current session has expired, it'll reauthenticate and get
+        a new session id. It'll return the current session id if it is 
+        still valid.
+        """
         if self.session_expired():
             self.session_id = self.get_new_session_id()
         return self._session_id
     
     @session_id.setter
     def session_id(self, session_token):
+        """
+        Sets the session token and resets the session time-out.
+        """
         self.reset_session_timeout()
         self._session_id = session_token
         return self._session_id
@@ -97,6 +144,8 @@ class Clickatell(object):
         """
         Get a new session id from Clickatell by authenticating with
         our username & password.
+        
+        Raises an error if there is an issue with the username and/or password
         """
         [resp] = self.client.http('auth', {
             'user': self.username, 
@@ -117,11 +166,12 @@ class Clickatell(object):
         if not self._session_start_time:
             return True
         return (datetime.now() - self._session_start_time) >= \
-                    self.session_time_out
+                    self.SESSION_TIME_OUT
     
     def ping(self):
         """
-        Ping Clickatell to keep our session_id alive
+        Ping Clickatell to keep our session_id alive or raise an error if 
+        something's wrong, e.g. the session_id has already expired.
         """
         [resp] = self.client.http('ping', {
             'session_id': self.session_id
@@ -129,11 +179,15 @@ class Clickatell(object):
         if isinstance(resp, OKResponse):
             self.reset_session_timeout()
             return True
-        else:
-            raise ClickatellError, resp
+        raise ClickatellError, resp
     
     def sendmsg(self, **options):
-        # clone the instance defaults
+        """
+        send an SMS message. Accepts all the variables as documented by
+        Clickatell in the HTTP api. Since `to` and `from` are keywords for 
+        python they should be specified as 'sender' and 'recipients'. The
+        recipients should be a list of MSISDNs.
+        """
         options.update(self.sendmsg_defaults.copy())
         options = validator.validate(options)
         options.update({
@@ -153,9 +207,15 @@ class Clickatell(object):
         using this value.
         """
         kwargs.update({'session_id': self.session_id})
-        return self.client.http('querymsg', kwargs)
+        [resp] = self.client.http('querymsg', kwargs)
+        if isinstance(resp, IDResponse):
+            return resp
+        raise ClickatellError, resp
     
     def getbalance(self):
+        """
+        Returns the current balance as a float.
+        """
         [resp] = self.client.http('getbalance', {
             'session_id': self.session_id
         })
@@ -164,6 +224,11 @@ class Clickatell(object):
         raise ClickatellError, resp
     
     def check_coverage(self, msisdn):
+        """
+        Checks the available coverage for an MSISDN. It returns either an 
+        OKResponse with the Charge specified in the extra dictionary or 
+        an ERRResponse with the reason.
+        """
         [resp] = self.client.utils('routeCoverage.php', {
             'msisdn': msisdn,
             'session_id': self.session_id
@@ -171,6 +236,10 @@ class Clickatell(object):
         return resp
     
     def getmsgcharge(self, apimsgid):
+        """
+        Returns an ApiMsgIdResponse with the 'charge' and the 'status' in the
+        extra dictionary or an ERRResponse with the error code and the reason
+        """
         [resp] = self.client.http('getmsgcharge', {
             'session_id': self.session_id,
             'apimsgid': apimsgid
@@ -178,6 +247,9 @@ class Clickatell(object):
         return resp
     
     def batch(self, **options):
+        """
+        Return a Batch messaging instance
+        """
         options.update(self.sendmsg_defaults.copy())
         return Batch(self, validator.validate(options))
     

@@ -44,8 +44,132 @@ The Clickatell library from `src/` will be on your PYTHONPATH and accessible via
 Testing
 =======
 
-This project uses Nose for tests:
+This project uses Nose for tests, the `master` branch should be stable at all times:
 
     (ve)$ nosetests
     ...
 
+
+Using Bellville
+===============
+
+Some code examples that illustrate how this thing works.
+
+Sending a single SMS
+--------------------
+
+    >>> from clickatell.api import Clickatell
+    >>> clickatell = Clickatell('username','password','api_id')
+    >>> [resp] = clickatell.sendmsg(recipients=['27123456789'], 
+    ...                                         sender='27123456789', 
+    ...                                         text='hello world')
+    >>> resp
+    IDResponse: ce7f181a44a4a5b7e43fe2b9a0b1f0c1
+    >>> resp.value # Clickatell's apiMsgId value
+    'ce7f181a44a4a5b7e43fe2b9a0b1f0c1'
+    >>> 
+    
+Sending an SMS to multiple recipients
+-------------------------------------
+
+    >>> [resp1, resp2] = clickatell.sendmsg(recipients=[
+    ...                                         '27123456781',
+    ...                                         '27123456782'], 
+    ...                                     sender='27123456789',
+    ...                                     text='hello world')
+    >>> resp1.value # the apiMsgId
+    'ce7f181a44a4a5b7e43fe2b9a0b1f0c1'
+    >>> resp1.extra # the extra values returned for the response
+    {'To': '27123456781'}
+    >>> resp2.value
+    'ce7f181a44a4a5b7e43fe2b9a0b1f0c2'
+    >>> resp2.extra
+    {'To': '27123456782'}
+    >>>
+
+Checking the status of a message
+--------------------------------
+
+Clickatell allows you to check the status of messages by polling their servers. However, they also allow you to use HTTP callbacks, where they post the status to your servers in realtime. **This is much faster and more efficient.** 
+
+    >>> status = clickatell.querymsg( \
+    ...                         apimsgid='ce7f181a44a4a5b7e43fe2b9a0b1f0c1')
+    >>> status.value
+    'ce7f181a44a4a5b7e43fe2b9a0b1f0c1'
+    >>> status.extra
+    {'Status': '002'}
+    >>> 
+
+Checking the balance of your Clickatell account
+-----------------------------------------------
+
+    >>> clickatell.getbalance()
+    0.67000000000000004
+    >>> 
+
+
+Checking the coverage of an MSISDN
+----------------------------------
+
+    >>> clickatell.check_coverage('27219107700')
+    ERRResponse: This prefix is not currently supported. Messages sent to this prefix will fail. Please contact support for assistance.
+    >>> resp = clickatell.check_coverage('2776*******')
+    >>> resp
+    OKResponse: This prefix is currently supported. Messages sent to this prefix will be routed. Charge: 1
+    >>> resp.value
+    'This prefix is currently supported. Messages sent to this prefix will be routed.'
+    >>> resp.extra
+    {'Charge': '1'}
+    >>> 
+    
+Checking the message charge
+---------------------------
+
+    >>> resp = clickatell.getmsgcharge( \
+                                apimsgid='ce7f181a44a4a5b7e43fe2b9a0b1f0c1')
+    >>> resp.value
+    'ce7f181a44a4a5b7e43fe2b9a0b1f0c1'
+    >>> resp.extra
+    {'status': '002', 'charge': '1'}
+    >>> 
+
+
+Sending batches of messages
+---------------------------
+
+The responses from the `batch.sendmsg()` method are the same as from `clickatell.sendmsg()`.
+
+    >>> batch = clickatell.batch(sender='27123456789', 
+    ...                             template='Hello #field1# #field2#')
+    >>> with batch:
+    ...     batch.sendmsg(to='27123456781', context={
+    ...         'field1': 'Foo 1', 
+    ...         'field2':'Bar 1'
+    ...     })
+    ...     batch.sendmsg(to='27123456782', context={
+    ...         'field1': 'Foo 2', 
+    ...         'field2':'Bar 2'
+    ...     })
+    ... 
+    ERRResponse: 301, No Credit Left
+    ERRResponse: 301, No Credit Left
+    >>> # shucks
+
+Sending a quick message to multiple recipients:
+-----------------------------------------------
+
+    >>> with clickatell.batch(sender='27123456789', 
+    ...                         template='Hello world!') as batch:
+    ...     [apimsgid1, apimsgid2, apimsgid3] = batch.quicksend(recipients=[
+    ...         '27123456781',
+    ...         '27123456782',
+    ...         '27123456783',
+    ...     ])
+    ... 
+    >>> apimsgid1
+    ERRResponse: 301, No Credit Left To: 27123456781
+    >>> apimsgid2
+    ERRResponse: 301, No Credit Left To: 27123456782
+    >>> apimsgid3
+    ERRResponse: 301, No Credit Left To: 27123456783
+    >>> 

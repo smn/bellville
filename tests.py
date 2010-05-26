@@ -153,7 +153,7 @@ class ClickatellTestCase(TestCase):
         [send_response] = clickatell.sendmsg(recipients=['27123456781'],
                                                 sender='27123456781',
                                                 text='hello world')
-        [status_response] = clickatell.querymsg(apimsgid=send_response.value)
+        status_response = clickatell.querymsg(apimsgid=send_response.value)
         
         # check the mocked session hash
         self.assertEquals(clickatell.session_id, 'sessionhash')
@@ -377,7 +377,7 @@ class SessionTestCase(TestCase):
         clickatell = Clickatell("username", "password", "api_id", \
                                 client_class=TestClient,
                                 sendmsg_defaults=sendmsg_defaults)
-        delta = clickatell.session_time_out
+        delta = Clickatell.SESSION_TIME_OUT
         clickatell._session_start_time = datetime.now() - delta - \
                                                 timedelta(minutes=1)
         self.assertTrue(clickatell.session_expired())
@@ -435,7 +435,7 @@ class SessionTestCase(TestCase):
         # manually expire by setting the session_start_time beyond the allowed
         # timeout
         clickatell._session_start_time = datetime.now() - \
-                                            (clickatell.session_time_out * 2)
+                                            (Clickatell.SESSION_TIME_OUT * 2)
         # next api.session_id call should call the auth url 
         # because the session's timed out
         clickatell.client.mock('GET', auth_url, {
@@ -446,6 +446,7 @@ class SessionTestCase(TestCase):
         self.assertEquals(clickatell.session_id, 'new_session_hash')
         # make sure the URLs we expected to be called all actually did
         self.assertTrue(clickatell.client.all_mocks_called())
+    
 
 class AuthenticationTestCase(TestCase):
     """Test authentication schemes"""
