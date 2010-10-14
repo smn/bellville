@@ -1,5 +1,5 @@
-Bellville
-=========
+Bellville, A Clickatell Python Library
+======================================
 
 A Python Clickatell HTTP library.
 
