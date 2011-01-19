@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name = "smn-bellville",
+    name = "python-clickatell",
     version = "0.1",
     url = 'http://github.com/smn/bellville',
     license = 'BSD',
