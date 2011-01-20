@@ -54,6 +54,7 @@ This project uses Nose for tests, the `master` branch should be stable at all ti
 
 ::
     
+    (ve)$ pip install nose
     (ve)$ nosetests
     ...
 
