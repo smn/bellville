@@ -2,4 +2,3 @@ include README.rst
 include LICENSE
 include CLASSIFIERS
 include requirements.pip
-recursive-include *.py
