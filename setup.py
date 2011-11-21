@@ -5,7 +5,7 @@ def listify(filename):
 
 setup(
     name = "python-clickatell",
-    version = "0.1.2",
+    version = "0.1.3",
     url = 'http://github.com/smn/bellville',
     license = 'BSD',
     description = "Clickatell HTTP library",
