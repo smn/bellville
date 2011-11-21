@@ -18,7 +18,7 @@ class Validator(Dispatcher):
     def validate_from(self, _from):
         if _from.isdigit() and len(_from) <= 16:
             return _from
-        elif _from.isalpha() and len(_from) <= 11:
+        elif _from.isalnum() and len(_from) <= 11:
             return _from
         raise ClickatellError, "The source address (from), also known as the " \
                                 "sender ID, can be either a valid international " \

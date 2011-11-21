@@ -3,6 +3,7 @@ from clickatell.api import Clickatell
 from clickatell.errors import ClickatellError
 from clickatell.response import ERRResponse, OKResponse, ApiMsgIdResponse
 from clickatell import constants as cc
+from clickatell import validators
 from clickatell.tests.mock import TestClient
 from datetime import datetime, timedelta
 
@@ -538,3 +539,35 @@ class MockingTestCase(TestCase):
                             client.post('http://api.clickatell.com', \
                                                 data=data))
 
+class ValidatorsTestCase(TestCase):
+    """Verify validators"""
+    def setUp(self):
+        self.validator = validators.Validator()
+
+    def assertIsAcceptableSender(self, sender):
+        self.assertEquals(self.validator.validate_from(sender),
+                          sender)
+
+    def assertIsNotAcceptableSender(self, sender):
+        self.assertRaises(ClickatellError,
+                          self.validator.validate_from,
+                          sender)
+
+    def test_validate_from_empty(self):
+        self.assertIsNotAcceptableSender('')
+
+    def test_validate_from_msisdn(self):
+        for length in range(1,17):
+            self.assertIsAcceptableSender('2' * length)
+
+    def test_validate_from_msisdn_too_long(self):
+        self.assertIsNotAcceptableSender('12345678901234567')
+
+    def test_validate_from_only_alpha(self):
+        self.assertIsAcceptableSender('Company')
+
+    def test_validate_from_alphanumerical(self):
+        self.assertIsAcceptableSender('Company1234')
+
+    def test_validate_from_too_long(self):
+        self.assertIsNotAcceptableSender('Company12345')
